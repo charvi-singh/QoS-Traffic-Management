@@ -3,7 +3,7 @@ title: "QoS Traffic Management System – D1 Report"
 subtitle: "SDN-Socket Programming Jackfruit Mini Project (UE25CS243A) – Project 5"
 ---
 
-**Team members:** _<Name 1 – SRN>_, _<Name 2 – SRN>_, _<Name 3 – SRN>_
+**Team members:** DEEPESH C- PES1UG25AM108,CHARVI SINGH-PES1UG25AM090 , SURAAG.GS -PES1UG25AM126
 **GitHub repository:** _<link>_
 **Protocol:** UDP  |  **Controller:** Ryu (OpenFlow 1.3)  |  **Emulator:** Mininet + Open vSwitch
 
