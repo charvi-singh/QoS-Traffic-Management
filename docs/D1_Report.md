@@ -1,132 +1,142 @@
----
-title: "QoS Traffic Management System – D1 Report"
-subtitle: "SDN-Socket Programming Jackfruit Mini Project (UE25CS243A) – Project 5"
----
+# QoS Traffic Management System (SDN + UDP Sockets)
 
-**Team members:** DEEPESH C- PES1UG25AM108,CHARVI SINGH-PES1UG25AM090 , SURAAG.GS -PES1UG25AM126
-**GitHub repository:** [_<link>_](https://github.com/charvi-singh/QoS-Traffic-Management)
-**Protocol:** UDP  |  **Controller:** Ryu (OpenFlow 1.3)  |  **Emulator:** Mininet + Open vSwitch
+**Computer Networks (UE25CS243A) — SDN-Socket Programming Jackfruit Mini Project, Project 5**
 
-# 1. Problem Understanding & Architecture
+## 1. Project Overview
 
-**Problem.** When many applications share a congested link, a FIFO queue treats all packets alike, so delay-sensitive
-traffic (voice) suffers the same loss and queueing delay as bulk transfers. The project builds a UDP application that
-generates different traffic classes and uses an SDN controller to prioritise selected flows during congestion.
+This project implements a Software-Defined Networking (SDN)-based Quality of Service (QoS) Traffic Management System using Python UDP sockets, the Ryu SDN controller, OpenFlow 1.3, Mininet and Open vSwitch (OVS).
 
-**Objectives.**
+The application generates three simulated UDP traffic classes:
 
-1. Generate multiple UDP traffic classes (A voice-like, B video-like, C bulk).
-2. Classify application flows in the SDN controller.
-3. Implement SDN-based priority policies (OpenFlow rules mapping classes to OVS priority queues).
-4. Create controlled congestion and measure throughput, latency and packet loss per class.
-5. Compare with a no-QoS baseline and analyse fairness; (D2) modify policies dynamically at run time.
+- **Class A:** Voice-like traffic
+- **Class B:** Video-like traffic
+- **Class C:** Bulk / best-effort traffic
 
-**Architecture.**
+The Ryu controller identifies traffic using UDP destination ports and installs OpenFlow rules that assign packets to corresponding OVS HTB queues.
 
-```
-h1 (A) --\
-h2 (B) ---+-- s1 ==== 5 Mbit/s bottleneck (s1-eth4, HTB queues 1/2/3) ==== s2 -- h4 (receiver)
-h3 (C) --/                       |
-                         Ryu controller (OpenFlow 1.3, 127.0.0.1:6653)
-```
+The objective is to demonstrate traffic classification, queue assignment and differentiated traffic handling.
 
-| Component | Role |
+## 2. Traffic Classification
+
+| Class | Traffic type | UDP port | OVS queue |
+|---|---|---:|---:|
+| A | Voice-like | 5001 | 1 |
+| B | Video-like | 5002 | 2 |
+| C | Bulk / best effort | 5003 | 3 |
+
+## 3. Technologies Used
+
+| Technology | Purpose |
 |---|---|
-| `udp_sender.py` (h1,h2,h3) | Generates one class each: rate, packet size, burst, duration configurable |
-| `udp_receiver.py` (h4) | Receives on ports 5001-5003, logs every packet, computes loss/throughput/latency/jitter |
-| Mininet topology | 4 hosts, 2 OVS switches, bottleneck link s1-s2 |
-| OVS HTB QoS on `s1-eth4` | Root rate 5 Mbit/s; queue 1 (A, priority 1), queue 2 (B, priority 2), queue 3 (C, priority 3) |
-| Ryu controller | Learning switch + classification by UDP destination port + `set_queue` flow rules |
+| Python | UDP sender, receiver and controller implementation |
+| UDP sockets | Traffic generation and reception |
+| Ryu 4.34 | SDN controller |
+| OpenFlow 1.3 | Controller-to-switch communication |
+| Mininet 2.3.0 | Virtual network emulation |
+| Open vSwitch 2.17.12 | Software switching and queue management |
+| Linux HTB | Bandwidth-based queue configuration |
 
-**Communication flow.** Sender → s1 → (table miss → packet-in to controller) → controller installs a class rule
-`match(ipv4_src, ipv4_dst, udp_dst) → set_queue(q), output(4)` → subsequent packets are forwarded in the switch at line
-rate through the class queue → s2 → receiver.
+## 4. Network Topology
 
-**Application protocol (18-byte header).**
+The implemented Mininet topology consists of:
 
-| Field | Size | Meaning |
-|---|---|---|
-| type | 1 B | 0 = DATA, 1 = FIN (carries total packets sent, used for exact loss computation) |
-| class_id | 1 B | 0 = A, 1 = B, 2 = C |
-| seq | 4 B | sequence number |
-| send_ts | 8 B | sender timestamp (all hosts share the VM clock, so one-way latency is valid) |
-| payload_len | 4 B | padding length |
+- Three hosts: h1, h2 and h3
+- One Open vSwitch: s1
+- One Ryu controller connected using OpenFlow 1.3
 
-**Traffic classes.**
+Host IP addresses:
 
-| Class | UDP port | OVS queue | Packet size | Offered load | Nature |
-|---|---|---|---|---|---|
-| A | 5001 | 1 (highest) | 200 B | 0.4 Mbit/s | small, steady |
-| B | 5002 | 2 | 1000 B | 2 Mbit/s | bursty (4 back-to-back) |
-| C | 5003 | 3 | 1400 B | 6 Mbit/s | bulk, saturating |
+| Host | IP address |
+|---|---|
+| h1 | 10.0.0.1/24 |
+| h2 | 10.0.0.2/24 |
+| h3 | 10.0.0.3/24 |
 
-Total offered load is 8.4 Mbit/s against a 5 Mbit/s bottleneck, which creates sustained congestion.
+## 5. Repository Structure
 
-# 2. TCP/UDP Socket Implementation
+```text
+app/
+    qos_common.py
+    udp_sender.py
+    udp_receiver.py
 
-* Low-level `socket.SOCK_DGRAM` sockets only; no application framework.
-* **Sender:** time-paced loop (target rate computed from packet size), optional bursts to model bursty video, FIN marker
-  sent five times because a single FIN could be dropped under congestion.
-* **Receiver:** one non-blocking UDP socket per class port multiplexed with `select`; enlarged receive buffer
-  (4 MB); duplicate detection through a sequence set; invalid or short packets ignored; runs until all FINs are seen
-  or a timeout expires.
-* **Concurrency:** three sender processes run in parallel on h1-h3 while one receiver serves all classes.
-* **Metrics:** per-class received packets, loss % (FIN total vs. received), throughput (kbit/s), latency
-  (avg / p95 / max) and jitter (standard deviation of latency); a per-packet CSV is stored in `results/`.
+controller/
+    ryu_qos_controller.py
 
-# 3. Mininet + SDN Implementation
+topology/
+    topology.py
 
-* **Topology** (`topology/qos_topo.py`): 4 hosts, 2 OpenFlow 1.3 switches, explicit port numbers so the controller
-  knows that `s1` port 4 is the bottleneck; remote controller on 127.0.0.1:6653; static ARP removes broadcast noise.
-* **Bottleneck:** an Open vSwitch `linux-htb` QoS on `s1-eth4` limits the link to 5 Mbit/s and defines three queues
-  with guaranteed minimum rates (1 / 2 / 1 Mbit/s) and strict priorities (1 > 2 > 3).
-* **Controller** (`controller/qos_ryu.py`):
-  * learning-switch behaviour for ARP/ICMP and unclassified traffic (priority 10),
-  * UDP classification by destination port into classes A/B/C (priority 200 rules),
-  * `QOS_MODE=qos` adds `set_queue` to the bottleneck-bound rule, `QOS_MODE=baseline` omits it, giving a
-    static no-QoS reference for the comparison required by the rubric.
+```
 
-# 4. Socket–SDN Integration
+The application contains the UDP packet format, traffic generator and receiver. The controller performs traffic classification and queue selection. The topology file creates the Mininet network.
 
-The socket application's traffic drives the controller: the first datagram of each class flow raises a packet-in,
-the controller identifies the class from the UDP port carried by the application, and installs a rule that places
-the flow in the matching priority queue. The application's class definition (port ↔ class) is shared between
-`qos_common.py` and the controller, so application events directly determine SDN behaviour. The installed rules
-are visible with `ovs-ofctl dump-flows s1` (`set_queue:N` actions) and are saved to `results/d1_<mode>_flows.txt`.
+## 6. How the System Works
 
-# 5. Initial Testing & Demo
+1. The UDP sender generates packets with a class ID, sequence number and sending timestamp.
+2. Packets enter the Open vSwitch.
+3. The Ryu controller installs OpenFlow rules to classify UDP traffic based on destination ports.
+4. The controller maps UDP ports 5001, 5002 and 5003 to queues 1, 2 and 3.
+5. OVS uses the configured HTB queues to manage traffic on its egress interfaces.
+6. The receiver calculates packet loss, throughput, latency and jitter.
 
-| # | Test | How | Expected |
-|---|---|---|---|
-| T1 | Topology connectivity | `pingall` in Mininet | 0 % loss, 4 hosts reachable |
-| T2 | Controller connection | controller log | s1 and s2 connected, table-miss installed |
-| T3 | UDP app, no congestion | one class alone | 0 % loss, throughput ≈ offered load |
-| T4 | Classification | `dump-flows s1` after traffic | three priority-200 rules, one per class, with `set_queue:1/2/3` (qos mode) |
-| T5 | Congestion, baseline | `QOS_MODE=baseline`, all three classes | all classes show loss; class A latency high |
-| T6 | Congestion, SDN QoS | `QOS_MODE=qos`, all three classes | class A loss ≈ 0 and low latency; class C absorbs the loss |
+## 7. QoS Queue Configuration
 
-**Reproduce:** `./scripts/run_d1.sh` (see README).
+The implementation uses OVS QoS with the Linux HTB queueing discipline.
 
-## Results (fill in from your own run – `results/d1_*_summary.json`, `python3 scripts/compare.py`)
+The configured queue parameters reported during testing are:
 
-| Class | Metric | Baseline (no QoS) | SDN QoS |
-|---|---|---|---|
-| A | loss % | _..._ | _..._ |
-| A | avg latency (ms) | _..._ | _..._ |
-| B | loss % | _..._ | _..._ |
-| B | throughput (kbit/s) | _..._ | _..._ |
-| C | loss % | _..._ | _..._ |
-| C | throughput (kbit/s) | _..._ | _..._ |
+| Queue | Traffic class | Minimum rate | Maximum rate |
+|---|---|---:|---:|
+| 1 | Class A | 1 Mbps | 10 Mbps |
+| 2 | Class B | 1 Mbps | 5 Mbps |
+| 3 | Class C | 500 Kbps | 500 Kbps |
 
-_Screenshots to add:_ topology/`net` output, `pingall`, controller log with class rules, `dump-flows s1`, receiver
-summary for both modes.
+The parent QoS maximum rate is reported as 10 Mbps.
 
-# 6. Planned work for D2
+## 8. Testing and Evaluation
 
-1. **Dynamic SDN functionality:** poll port statistics (OFPPortStatsRequest) on the bottleneck, detect congestion
-   from utilisation, and switch the policy at run time (enable priority queues, tighten or relax class limits,
-   optionally OpenFlow meters) without restarting the network.
-2. **Challenging scenario:** link failure / heavier overload, with the controller reacting.
-3. **Performance evaluation:** several load levels, baseline vs. static priority vs. dynamic priority,
-   Jain's fairness index between classes, graphs for throughput, latency and loss.
-4. **Documentation, final demo and viva preparation.**
+The project includes the following tests:
+
+- Mininet host connectivity using `pingall`.
+- Ryu controller and OVS connectivity.
+- OpenFlow flow-table verification.
+- OVS QoS and queue configuration verification.
+- Individual UDP traffic tests for Classes A, B and C.
+- Simultaneous traffic generation and receiver-side measurement.
+
+The receiver measures:
+
+| Metric | Description |
+|---|---|
+| Throughput | Successfully received data per unit time |
+| Packet loss | Percentage of expected packets not received |
+| Latency | Time taken for a packet to reach the receiver |
+| Jitter | Variation in packet delay |
+
+Individual tests recorded successful packet reception for all three classes. In the simultaneous test, Classes A and B were recorded at the receiver, while Class C was not recorded. Further testing is required to establish complete three-class QoS performance under simultaneous congestion.
+
+## 9. D1 and D2 Scope
+
+**D1 — Initial implementation**
+
+- UDP sender and receiver.
+- Mininet topology.
+- Ryu controller integration.
+- OpenFlow traffic classification.
+- OVS HTB queue configuration.
+- Initial traffic testing and measurement.
+
+**D2 — Planned extensions**
+
+- Dynamic congestion detection using switch port statistics.
+- Runtime QoS policy changes.
+- Link-failure and robustness testing.
+- Jain's fairness index.
+- Multiple traffic-load experiments.
+- Performance graphs and comparative evaluation.
+
+## 10. Project Outcome
+
+The D1 implementation demonstrates the integration of UDP socket programming with an SDN controller and OVS queue-based traffic management. It verifies destination-port-based traffic classification and queue assignment, along with individual traffic reception tests.
+
+Further simultaneous congestion testing is required to quantify the QoS performance improvement across all three traffic classes.
