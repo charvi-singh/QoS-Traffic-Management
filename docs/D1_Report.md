@@ -4,7 +4,7 @@ subtitle: "SDN-Socket Programming Jackfruit Mini Project (UE25CS243A) – Projec
 ---
 
 **Team members:** DEEPESH C- PES1UG25AM108,CHARVI SINGH-PES1UG25AM090 , SURAAG.GS -PES1UG25AM126
-**GitHub repository:** _<link>_
+**GitHub repository:** [_<link>_](https://github.com/charvi-singh/QoS-Traffic-Management)
 **Protocol:** UDP  |  **Controller:** Ryu (OpenFlow 1.3)  |  **Emulator:** Mininet + Open vSwitch
 
 # 1. Problem Understanding & Architecture
