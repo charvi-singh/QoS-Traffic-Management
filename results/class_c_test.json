@@ -1,0 +1,13 @@
+{
+  "C": {
+    "rx": 4393,
+    "expected": 4393,
+    "loss_pct": 0.0,
+    "throughput_kbps": 4857.0,
+    "lat_avg_ms": 157.35,
+    "lat_p95_ms": 212.14,
+    "lat_max_ms": 218.32,
+    "jitter_ms": 40.37,
+    "duplicates": 0
+  }
+}

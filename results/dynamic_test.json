@@ -1,0 +1,35 @@
+{
+  "A": {
+    "rx": 2870,
+    "expected": 3145,
+    "loss_pct": 8.74,
+    "throughput_kbps": 311.1,
+    "lat_avg_ms": 305.58,
+    "lat_p95_ms": 1706.03,
+    "lat_max_ms": 2186.35,
+    "jitter_ms": 598.1,
+    "duplicates": 0
+  },
+  "B": {
+    "rx": 1908,
+    "expected": 2088,
+    "loss_pct": 8.62,
+    "throughput_kbps": 1449.4,
+    "lat_avg_ms": 555.43,
+    "lat_p95_ms": 2021.65,
+    "lat_max_ms": 2184.06,
+    "jitter_ms": 745.55,
+    "duplicates": 0
+  },
+  "C": {
+    "rx": 2010,
+    "expected": 2546,
+    "loss_pct": 21.05,
+    "throughput_kbps": 3525.6,
+    "lat_avg_ms": 1151.96,
+    "lat_p95_ms": 2091.84,
+    "lat_max_ms": 2184.22,
+    "jitter_ms": 640.88,
+    "duplicates": 0
+  }
+}

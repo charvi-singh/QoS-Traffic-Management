@@ -1,0 +1,13 @@
+{
+  "A": {
+    "rx": 2501,
+    "expected": 2501,
+    "loss_pct": 0.0,
+    "throughput_kbps": 400.2,
+    "lat_avg_ms": 0.04,
+    "lat_p95_ms": 0.07,
+    "lat_max_ms": 1.99,
+    "jitter_ms": 0.06,
+    "duplicates": 0
+  }
+}
